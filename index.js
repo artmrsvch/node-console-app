@@ -9,6 +9,7 @@ const moveFile = (file, dir, currentPath) => {
     const inPath = path.join(dir, file);
     fs.openSync(inPath, "w");
     fs.copyFileSync(currentPath, inPath);
+    fs.unlinkSync(currentPath);
 };
 const contorolLocationFile = (file, currentPath) => {
     const dir = path.join(inputPath, file[0].toUpperCase());
@@ -26,6 +27,7 @@ const searchFile = (data, pathRoute) => {
         stat.isDirectory() && searchFile(fs.readdirSync(thatPath), thatPath);
         stat.isFile() && contorolLocationFile(elem, thatPath);
     });
+    fs.rmdirSync(pathRoute);
 };
 fs.readdir(outputPath, (err, data) => {
     if (err) console.log(err);
