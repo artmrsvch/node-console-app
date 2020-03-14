@@ -29,6 +29,7 @@ const searchFile = (data, pathRoute) => {
     });
     fs.rmdirSync(pathRoute);
 };
+
 fs.readdir(outputPath, (err, data) => {
     if (err) console.log(err);
     searchFile(data, outputPath);
