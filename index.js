@@ -1,36 +1,70 @@
 const fs = require("fs");
 const path = require("path");
+const Events = require("events");
+
 const { outputPath, inputPath } = {
     outputPath: path.join(__dirname, "src"),
     inputPath: path.join(__dirname, "dist")
 };
+const eventEmitter = new Events();
 
-const moveFile = (file, dir, currentPath) => {
+eventEmitter.on("observeEmptyDir", dir => {
+    fs.readdir(dir, (err, data) => {
+        err && console.log("READEMIT", err);
+        if (fs.existsSync(dir)) {
+            if (!data.length) {
+                fs.rmdir(dir, err => {
+                    err && console.log("RMDIR", err);
+                    const faterPath = path.parse(dir).dir;
+                    eventEmitter.emit("observeEmptyDir", faterPath);
+                });
+            }
+        }
+    });
+});
+const moveFile = (file, dir, currentPath, pathToDir) => {
     const inPath = path.join(dir, file);
-    fs.openSync(inPath, "w");
-    fs.copyFileSync(currentPath, inPath);
-    fs.unlinkSync(currentPath);
+    fs.open(inPath, "w", err => {
+        err && console.log("OPEN", err);
+        fs.copyFile(currentPath, inPath, err => {
+            err && console.log("COPY", err);
+            fs.unlink(currentPath, err => {
+                err && console.log("UNLINK", err);
+                eventEmitter.emit("observeEmptyDir", pathToDir);
+            });
+        });
+    });
 };
-const contorolLocationFile = (file, currentPath) => {
+const contorolLocationFile = (file, currentPath, pathToDir) => {
     const dir = path.join(inputPath, file[0].toUpperCase());
     if (!fs.existsSync(path.join(inputPath, `${file[0]}`))) {
-        fs.mkdirSync(dir);
-        moveFile(file, dir, currentPath);
+        fs.mkdir(dir, err => {
+            err && console.log(err);
+            moveFile(file, dir, currentPath, pathToDir);
+        });
     } else {
-        moveFile(file, dir, currentPath);
+        moveFile(file, dir, currentPath, pathToDir);
     }
 };
-const searchFile = (data, pathRoute) => {
+const searchFile = (data, rootPath) => {
     data.forEach(elem => {
-        const thatPath = path.join(pathRoute, elem);
-        const stat = fs.lstatSync(thatPath);
-        stat.isDirectory() && searchFile(fs.readdirSync(thatPath), thatPath);
-        stat.isFile() && contorolLocationFile(elem, thatPath);
+        const pathToElem = path.join(rootPath, elem);
+        fs.lstat(pathToElem, (err, stats) => {
+            err && console.log(err);
+            if (stats.isDirectory()) {
+                fs.readdir(pathToElem, (err, files) => {
+                    err && console.log(err);
+                    searchFile(files, pathToElem);
+                });
+            }
+            stats.isFile() && contorolLocationFile(elem, pathToElem, rootPath);
+        });
     });
-    fs.rmdirSync(pathRoute);
 };
-
 fs.readdir(outputPath, (err, data) => {
-    if (err) console.log(err);
-    searchFile(data, outputPath);
+    err && console.log(err);
+    fs.mkdir(inputPath, err => {
+        err && console.log(err);
+        searchFile(data, outputPath);
+    });
 });
