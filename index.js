@@ -1,35 +1,101 @@
 const fs = require("fs");
+const yargs = require("yargs");
 const path = require("path");
-const { outputPath, inputPath } = {
-    outputPath: path.join(__dirname, "src"),
-    inputPath: path.join(__dirname, "dist")
+const Events = require("events");
+const basicPaths = {
+    source: null,
+    dist: null
 };
+const argv = yargs
+    .usage("Usage: $0 [option]")
+    .help("help")
+    .alias("help", "h")
+    .version("0.0.1")
+    .alias("version", "v")
+    .example("$0 --entry ./filesSort --output ./dist -D => Sortings folder")
+    .option("entry", {
+        alias: "e",
+        describe: "Путь к читаемой директории",
+        demandOption: true
+    })
+    .option("output", {
+        alias: "o",
+        describe: "Путь куда сортировать файлы",
+        default: "./dist"
+    })
+    .option("delete", {
+        alias: "D",
+        type: "boolean",
+        describe: "Необходимо удалить исходную директорию после сортировки?",
+        default: false
+    })
+    .epilog("App for week_1").argv;
 
-const moveFile = (file, dir, currentPath) => {
+basicPaths.source = path.normalize(path.join(__dirname, argv.entry));
+basicPaths.dist = path.normalize(path.join(__dirname, argv.output));
+
+const eventEmitter = new Events();
+
+eventEmitter.on("observeEmptyDir", dir => {
+    fs.readdir(dir, (err, data) => {
+        err && console.log("READEMIT", err);
+        if (fs.existsSync(dir)) {
+            if (!data.length) {
+                fs.rmdir(dir, err => {
+                    err && console.log("RMDIR", err);
+                    const faterPath = path.parse(dir).dir;
+                    eventEmitter.emit("observeEmptyDir", faterPath);
+                });
+            }
+        }
+    });
+});
+const moveFile = (file, dir, currentPath, pathToDir) => {
     const inPath = path.join(dir, file);
-    fs.openSync(inPath, "w");
-    fs.copyFileSync(currentPath, inPath);
-    fs.unlinkSync(currentPath);
+    fs.open(inPath, "w", err => {
+        err && console.log("OPEN", err);
+        fs.copyFile(currentPath, inPath, err => {
+            err && console.log("COPY", err);
+            argv.delete &&
+                fs.unlink(currentPath, err => {
+                    err && console.log("UNLINK", err);
+                    eventEmitter.emit("observeEmptyDir", pathToDir);
+                });
+        });
+    });
 };
-const contorolLocationFile = (file, currentPath) => {
-    const dir = path.join(inputPath, file[0].toUpperCase());
-    if (!fs.existsSync(path.join(inputPath, `${file[0]}`))) {
-        fs.mkdirSync(dir);
-        moveFile(file, dir, currentPath);
+const contorolLocationFile = (file, currentPath, pathToDir) => {
+    const dir = path.join(basicPaths.dist, file[0].toUpperCase());
+    if (!fs.existsSync(path.join(basicPaths.dist, `${file[0]}`))) {
+        fs.mkdir(dir, err => {
+            err && console.log("MKLITER", err);
+            moveFile(file, dir, currentPath, pathToDir);
+        });
     } else {
-        moveFile(file, dir, currentPath);
+        moveFile(file, dir, currentPath, pathToDir);
     }
 };
-const searchFile = (data, pathRoute) => {
+const searchFile = (data, rootPath) => {
     data.forEach(elem => {
-        const thatPath = path.join(pathRoute, elem);
-        const stat = fs.lstatSync(thatPath);
-        stat.isDirectory() && searchFile(fs.readdirSync(thatPath), thatPath);
-        stat.isFile() && contorolLocationFile(elem, thatPath);
+        const pathToElem = path.join(rootPath, elem);
+        fs.lstat(pathToElem, (err, stats) => {
+            err && console.log("LSTAT", err);
+            if (stats.isDirectory()) {
+                fs.readdir(pathToElem, (err, files) => {
+                    err && console.log("READFOREACH", err);
+                    searchFile(files, pathToElem);
+                });
+            }
+            stats.isFile() && contorolLocationFile(elem, pathToElem, rootPath);
+        });
     });
-    fs.rmdirSync(pathRoute);
 };
-fs.readdir(outputPath, (err, data) => {
-    if (err) console.log(err);
-    searchFile(data, outputPath);
+argv.output === "./dist" && !fs.existsSync(path.join(__dirname, "dist"))
+    ? fs.mkdir(basicPaths.dist, err => err && console.log("MKDIST", err))
+    : !fs.existsSync(basicPaths.dist) &&
+      fs.mkdir(basicPaths.dist, err => err && console.log("MKNEWOUT", err));
+
+fs.readdir(basicPaths.source, (err, data) => {
+    err && console.log("READBASIC", err);
+    searchFile(data, basicPaths.source);
 });
