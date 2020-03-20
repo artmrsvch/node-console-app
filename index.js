@@ -25,6 +25,7 @@ const argv = yargs
     })
     .option("delete", {
         alias: "D",
+        type: "boolean",
         describe: "Необходимо удалить исходную директорию после сортировки?",
         default: false
     })
@@ -36,19 +37,18 @@ basicPaths.dist = path.normalize(path.join(__dirname, argv.output));
 const eventEmitter = new Events();
 
 eventEmitter.on("observeEmptyDir", dir => {
-    argv.delete === "true" &&
-        fs.readdir(dir, (err, data) => {
-            err && console.log("READEMIT", err);
-            if (fs.existsSync(dir)) {
-                if (!data.length) {
-                    fs.rmdir(dir, err => {
-                        err && console.log("RMDIR", err);
-                        const faterPath = path.parse(dir).dir;
-                        eventEmitter.emit("observeEmptyDir", faterPath);
-                    });
-                }
+    fs.readdir(dir, (err, data) => {
+        err && console.log("READEMIT", err);
+        if (fs.existsSync(dir)) {
+            if (!data.length) {
+                fs.rmdir(dir, err => {
+                    err && console.log("RMDIR", err);
+                    const faterPath = path.parse(dir).dir;
+                    eventEmitter.emit("observeEmptyDir", faterPath);
+                });
             }
-        });
+        }
+    });
 });
 const moveFile = (file, dir, currentPath, pathToDir) => {
     const inPath = path.join(dir, file);
@@ -56,10 +56,11 @@ const moveFile = (file, dir, currentPath, pathToDir) => {
         err && console.log("OPEN", err);
         fs.copyFile(currentPath, inPath, err => {
             err && console.log("COPY", err);
-            fs.unlink(currentPath, err => {
-                err && console.log("UNLINK", err);
-                eventEmitter.emit("observeEmptyDir", pathToDir);
-            });
+            argv.delete &&
+                fs.unlink(currentPath, err => {
+                    err && console.log("UNLINK", err);
+                    eventEmitter.emit("observeEmptyDir", pathToDir);
+                });
         });
     });
 };
@@ -89,9 +90,10 @@ const searchFile = (data, rootPath) => {
         });
     });
 };
-argv.output === "./dist" &&
-    !fs.existsSync(path.join(__dirname, "dist")) &&
-    fs.mkdir(basicPaths.dist, err => err && console.log("MKDIST", err));
+argv.output === "./dist" && !fs.existsSync(path.join(__dirname, "dist"))
+    ? fs.mkdir(basicPaths.dist, err => err && console.log("MKDIST", err))
+    : !fs.existsSync(basicPaths.dist) &&
+      fs.mkdir(basicPaths.dist, err => err && console.log("MKNEWOUT", err));
 
 fs.readdir(basicPaths.source, (err, data) => {
     err && console.log("READBASIC", err);
