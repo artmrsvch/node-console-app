@@ -4,13 +4,15 @@ const http = require('http')
 const port = 3000
 
 const requestHandler = (req, res) => {
-    const timeID = setInterval(() => {
-        console.log(convertDateToUTC(new Date))
-    }, interval)
-    setTimeout(() => {
-        clearInterval(timeID)
-        res.end(`${convertDateToUTC(new Date)}`);
-    }, end)
+    if (req.method === "GET") {
+        const timeID = setInterval(() => {
+            console.log(convertDateToUTC(new Date))
+        }, interval)
+        setTimeout(() => {
+            clearInterval(timeID)
+            res.end(`${convertDateToUTC(new Date)}`);
+        }, end)
+    }
 }
 const server = http.createServer(requestHandler)
 server.listen(port, (err) => {
